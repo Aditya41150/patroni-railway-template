@@ -1,0 +1,91 @@
+# Railway Multi-Service Configuration
+# This file tells Railway to deploy multiple services from subdirectories
+
+services:
+  etcd1:
+    source:
+      directory: etcd
+    volumes:
+      - mountPath: /etcd-data
+    env:
+      ETCD_NODE_NUM: "1"
+      ETCD1_PRIVATE_DOMAIN: ${{etcd1.RAILWAY_PRIVATE_DOMAIN}}
+      ETCD2_PRIVATE_DOMAIN: ${{etcd2.RAILWAY_PRIVATE_DOMAIN}}
+      ETCD3_PRIVATE_DOMAIN: ${{etcd3.RAILWAY_PRIVATE_DOMAIN}}
+
+  etcd2:
+    source:
+      directory: etcd
+    volumes:
+      - mountPath: /etcd-data
+    env:
+      ETCD_NODE_NUM: "2"
+      ETCD1_PRIVATE_DOMAIN: ${{etcd1.RAILWAY_PRIVATE_DOMAIN}}
+      ETCD2_PRIVATE_DOMAIN: ${{etcd2.RAILWAY_PRIVATE_DOMAIN}}
+      ETCD3_PRIVATE_DOMAIN: ${{etcd3.RAILWAY_PRIVATE_DOMAIN}}
+
+  etcd3:
+    source:
+      directory: etcd
+    volumes:
+      - mountPath: /etcd-data
+    env:
+      ETCD_NODE_NUM: "3"
+      ETCD1_PRIVATE_DOMAIN: ${{etcd1.RAILWAY_PRIVATE_DOMAIN}}
+      ETCD2_PRIVATE_DOMAIN: ${{etcd2.RAILWAY_PRIVATE_DOMAIN}}
+      ETCD3_PRIVATE_DOMAIN: ${{etcd3.RAILWAY_PRIVATE_DOMAIN}}
+
+  patroni1:
+    source:
+      directory: patroni
+    volumes:
+      - mountPath: /var/lib/postgresql/data
+    env:
+      PATRONI_SCOPE: railway-patroni
+      PATRONI_NAME: patroni1
+      PATRONI_PRIVATE_DOMAIN: ${{patroni1.RAILWAY_PRIVATE_DOMAIN}}
+      ETCD1_PRIVATE_DOMAIN: ${{etcd1.RAILWAY_PRIVATE_DOMAIN}}
+      ETCD2_PRIVATE_DOMAIN: ${{etcd2.RAILWAY_PRIVATE_DOMAIN}}
+      ETCD3_PRIVATE_DOMAIN: ${{etcd3.RAILWAY_PRIVATE_DOMAIN}}
+      POSTGRES_PASSWORD: ${{POSTGRES_PASSWORD}}
+      REPLICATION_PASSWORD: ${{REPLICATION_PASSWORD}}
+
+  patroni2:
+    source:
+      directory: patroni
+    volumes:
+      - mountPath: /var/lib/postgresql/data
+    env:
+      PATRONI_SCOPE: railway-patroni
+      PATRONI_NAME: patroni2
+      PATRONI_PRIVATE_DOMAIN: ${{patroni2.RAILWAY_PRIVATE_DOMAIN}}
+      ETCD1_PRIVATE_DOMAIN: ${{etcd1.RAILWAY_PRIVATE_DOMAIN}}
+      ETCD2_PRIVATE_DOMAIN: ${{etcd2.RAILWAY_PRIVATE_DOMAIN}}
+      ETCD3_PRIVATE_DOMAIN: ${{etcd3.RAILWAY_PRIVATE_DOMAIN}}
+      POSTGRES_PASSWORD: ${{POSTGRES_PASSWORD}}
+      REPLICATION_PASSWORD: ${{REPLICATION_PASSWORD}}
+
+  patroni3:
+    source:
+      directory: patroni
+    volumes:
+      - mountPath: /var/lib/postgresql/data
+    env:
+      PATRONI_SCOPE: railway-patroni
+      PATRONI_NAME: patroni3
+      PATRONI_PRIVATE_DOMAIN: ${{patroni3.RAILWAY_PRIVATE_DOMAIN}}
+      ETCD1_PRIVATE_DOMAIN: ${{etcd1.RAILWAY_PRIVATE_DOMAIN}}
+      ETCD2_PRIVATE_DOMAIN: ${{etcd2.RAILWAY_PRIVATE_DOMAIN}}
+      ETCD3_PRIVATE_DOMAIN: ${{etcd3.RAILWAY_PRIVATE_DOMAIN}}
+      POSTGRES_PASSWORD: ${{POSTGRES_PASSWORD}}
+      REPLICATION_PASSWORD: ${{REPLICATION_PASSWORD}}
+
+  haproxy:
+    source:
+      directory: haproxy
+    env:
+      PATRONI1_PRIVATE_DOMAIN: ${{patroni1.RAILWAY_PRIVATE_DOMAIN}}
+      PATRONI2_PRIVATE_DOMAIN: ${{patroni2.RAILWAY_PRIVATE_DOMAIN}}
+      PATRONI3_PRIVATE_DOMAIN: ${{patroni3.RAILWAY_PRIVATE_DOMAIN}}
+      HAPROXY_STATS_USER: admin
+      HAPROXY_STATS_PASSWORD: ${{HAPROXY_STATS_PASSWORD}}
