@@ -1,0 +1,177 @@
+name: Test Patroni Template
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Start services
+        run: docker-compose up -d
+
+      - name: Wait for etcd cluster
+        run: |
+          echo "Waiting for etcd cluster..."
+          for i in {1..60}; do
+            if docker-compose exec -T etcd1 etcdctl endpoint health --endpoints=http://localhost:2379 2>/dev/null; then
+              echo "etcd is ready"
+              break
+            fi
+            echo "Waiting... ($i/60)"
+            sleep 5
+          done
+
+      - name: Wait for Patroni cluster
+        run: |
+          echo "Waiting for Patroni cluster..."
+          sleep 60
+          for i in {1..60}; do
+            if docker-compose exec -T patroni1 curl -s http://localhost:8008/health 2>/dev/null; then
+              echo "Patroni is ready"
+              break
+            fi
+            echo "Waiting... ($i/60)"
+            sleep 5
+          done
+
+      - name: Wait for HAProxy
+        run: |
+          echo "Waiting for HAProxy..."
+          for i in {1..30}; do
+            if curl -s http://localhost:8008/health 2>/dev/null; then
+              echo "HAProxy is ready"
+              break
+            fi
+            echo "Waiting... ($i/30)"
+            sleep 5
+          done
+
+      - name: Check cluster status
+        run: |
+          echo "Checking cluster status..."
+          docker-compose exec -T patroni1 patronictl -c /tmp/patroni.yml list
+
+      - name: Test database connectivity
+        run: |
+          echo "Testing database connectivity..."
+          docker-compose exec -T patroni1 psql -U postgres -c "SELECT version();"
+
+      - name: Test replication
+        run: |
+          echo "Creating test table..."
+          docker-compose exec -T patroni1 psql -U postgres -c "CREATE TABLE test_ci (id SERIAL PRIMARY KEY, data TEXT);"
+          docker-compose exec -T patroni1 psql -U postgres -c "INSERT INTO test_ci (data) VALUES ('test data');"
+          
+          echo "Waiting for replication..."
+          sleep 10
+          
+          echo "Verifying replication..."
+          docker-compose exec -T patroni2 psql -U postgres -c "SELECT * FROM test_ci;" || exit 1
+
+      - name: Test HAProxy routing
+        run: |
+          echo "Testing HAProxy write port..."
+          docker-compose exec -T haproxy sh -c "curl -f http://localhost:8008/health" || exit 1
+
+      - name: Test failover
+        run: |
+          echo "Getting current primary..."
+          PRIMARY=$(docker-compose exec -T patroni1 patronictl -c /tmp/patroni.yml list | grep Leader | awk '{print $2}' | tr -d '\r')
+          echo "Current primary: $PRIMARY"
+          
+          echo "Stopping primary node..."
+          docker-compose stop $PRIMARY
+          
+          echo "Waiting for failover..."
+          sleep 60
+          
+          echo "Checking for new primary..."
+          for NODE in patroni1 patroni2 patroni3; do
+            if [ "$NODE" != "$PRIMARY" ]; then
+              NEW_PRIMARY=$(docker-compose exec -T $NODE patronictl -c /tmp/patroni.yml list 2>/dev/null | grep Leader | awk '{print $2}' | tr -d '\r' || echo "")
+              if [ ! -z "$NEW_PRIMARY" ] && [ "$NEW_PRIMARY" != "$PRIMARY" ]; then
+                echo "Failover successful! New primary: $NEW_PRIMARY"
+                break
+              fi
+            fi
+          done
+          
+          echo "Restarting stopped node..."
+          docker-compose start $PRIMARY
+          sleep 20
+
+      - name: Show logs on failure
+        if: failure()
+        run: |
+          echo "=== etcd1 logs ==="
+          docker-compose logs etcd1
+          echo "=== patroni1 logs ==="
+          docker-compose logs patroni1
+          echo "=== haproxy logs ==="
+          docker-compose logs haproxy
+
+      - name: Cleanup
+        if: always()
+        run: docker-compose down -v
+
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Lint Dockerfiles
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: "etcd/Dockerfile"
+          ignore: DL3018
+
+      - name: Lint Patroni Dockerfile
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: "patroni/Dockerfile"
+          ignore: DL3018,DL3013
+
+      - name: Lint HAProxy Dockerfile
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: "haproxy/Dockerfile"
+          ignore: DL3018
+
+      - name: Lint shell scripts
+        run: |
+          sudo apt-get update && sudo apt-get install -y shellcheck
+          find . -name "*.sh" -exec shellcheck {} \;
+
+  validate-config:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Validate YAML files
+        run: |
+          sudo apt-get update && sudo apt-get install -y yamllint
+          yamllint patroni/patroni.yml || true
+
+      - name: Validate JSON files
+        run: |
+          python3 -m json.tool railway-template.json > /dev/null
+          python3 -m json.tool railway.json > /dev/null
+
+      - name: Validate docker-compose.yml
+        run: docker-compose config

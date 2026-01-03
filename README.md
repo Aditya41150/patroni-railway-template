@@ -1,6 +1,10 @@
 # Patroni PostgreSQL High Availability Template for Railway
 
-[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template/patroni-ha)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-blue?logo=postgresql)
+![Patroni](https://img.shields.io/badge/Patroni-3.2.1-green)
+![License](https://img.shields.io/badge/License-MIT-yellow)
+
+> **Production-ready PostgreSQL High Availability cluster for Railway with automatic failover, streaming replication, and intelligent load balancing.**
 
 ## Overview
 
@@ -210,6 +214,17 @@ Contributions are welcome! Please submit issues and pull requests to improve thi
 ## License
 
 MIT License - feel free to use and modify for your needs.
+
+## Documentation
+
+This template includes comprehensive documentation:
+
+- **[DEPLOYMENT.md](DEPLOYMENT.md)** - Detailed deployment guide with step-by-step instructions
+- **[TESTING.md](TESTING.md)** - Local testing procedures with Docker Compose
+- **[FAQ.md](FAQ.md)** - Frequently asked questions and troubleshooting
+- **[QUICK_REFERENCE.md](QUICK_REFERENCE.md)** - Command reference and cheat sheet
+- **[ARCHITECTURE.md](ARCHITECTURE.md)** - Visual architecture diagrams and data flow
+- **[CONTRIBUTING.md](CONTRIBUTING.md)** - Guidelines for contributing to the project
 
 ## Resources
 

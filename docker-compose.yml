@@ -1,0 +1,200 @@
+version: '3.8'
+
+services:
+  etcd1:
+    build: ./etcd
+    container_name: etcd1
+    environment:
+      - ETCD_NODE_NUM=1
+      - ETCD1_PRIVATE_DOMAIN=etcd1
+      - ETCD2_PRIVATE_DOMAIN=etcd2
+      - ETCD3_PRIVATE_DOMAIN=etcd3
+    volumes:
+      - etcd1_data:/etcd-data
+    networks:
+      - patroni-net
+    healthcheck:
+      test: ["CMD", "etcdctl", "endpoint", "health", "--endpoints=http://localhost:2379"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  etcd2:
+    build: ./etcd
+    container_name: etcd2
+    environment:
+      - ETCD_NODE_NUM=2
+      - ETCD1_PRIVATE_DOMAIN=etcd1
+      - ETCD2_PRIVATE_DOMAIN=etcd2
+      - ETCD3_PRIVATE_DOMAIN=etcd3
+    volumes:
+      - etcd2_data:/etcd-data
+    networks:
+      - patroni-net
+    healthcheck:
+      test: ["CMD", "etcdctl", "endpoint", "health", "--endpoints=http://localhost:2379"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  etcd3:
+    build: ./etcd
+    container_name: etcd3
+    environment:
+      - ETCD_NODE_NUM=3
+      - ETCD1_PRIVATE_DOMAIN=etcd1
+      - ETCD2_PRIVATE_DOMAIN=etcd2
+      - ETCD3_PRIVATE_DOMAIN=etcd3
+    volumes:
+      - etcd3_data:/etcd-data
+    networks:
+      - patroni-net
+    healthcheck:
+      test: ["CMD", "etcdctl", "endpoint", "health", "--endpoints=http://localhost:2379"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  patroni1:
+    build: ./patroni
+    container_name: patroni1
+    environment:
+      - PATRONI_SCOPE=local-patroni
+      - PATRONI_NAME=patroni1
+      - PATRONI_PRIVATE_DOMAIN=patroni1
+      - ETCD1_PRIVATE_DOMAIN=etcd1
+      - ETCD2_PRIVATE_DOMAIN=etcd2
+      - ETCD3_PRIVATE_DOMAIN=etcd3
+      - POSTGRES_PASSWORD=testpassword123
+      - REPLICATION_PASSWORD=replpassword123
+    volumes:
+      - patroni1_data:/var/lib/postgresql/data
+    networks:
+      - patroni-net
+    depends_on:
+      etcd1:
+        condition: service_healthy
+      etcd2:
+        condition: service_healthy
+      etcd3:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8008/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+  patroni2:
+    build: ./patroni
+    container_name: patroni2
+    environment:
+      - PATRONI_SCOPE=local-patroni
+      - PATRONI_NAME=patroni2
+      - PATRONI_PRIVATE_DOMAIN=patroni2
+      - ETCD1_PRIVATE_DOMAIN=etcd1
+      - ETCD2_PRIVATE_DOMAIN=etcd2
+      - ETCD3_PRIVATE_DOMAIN=etcd3
+      - POSTGRES_PASSWORD=testpassword123
+      - REPLICATION_PASSWORD=replpassword123
+    volumes:
+      - patroni2_data:/var/lib/postgresql/data
+    networks:
+      - patroni-net
+    depends_on:
+      etcd1:
+        condition: service_healthy
+      etcd2:
+        condition: service_healthy
+      etcd3:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8008/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+  patroni3:
+    build: ./patroni
+    container_name: patroni3
+    environment:
+      - PATRONI_SCOPE=local-patroni
+      - PATRONI_NAME=patroni3
+      - PATRONI_PRIVATE_DOMAIN=patroni3
+      - ETCD1_PRIVATE_DOMAIN=etcd1
+      - ETCD2_PRIVATE_DOMAIN=etcd2
+      - ETCD3_PRIVATE_DOMAIN=etcd3
+      - POSTGRES_PASSWORD=testpassword123
+      - REPLICATION_PASSWORD=replpassword123
+    volumes:
+      - patroni3_data:/var/lib/postgresql/data
+    networks:
+      - patroni-net
+    depends_on:
+      etcd1:
+        condition: service_healthy
+      etcd2:
+        condition: service_healthy
+      etcd3:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8008/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+  haproxy:
+    build: ./haproxy
+    container_name: haproxy
+    environment:
+      - PATRONI1_PRIVATE_DOMAIN=patroni1
+      - PATRONI2_PRIVATE_DOMAIN=patroni2
+      - PATRONI3_PRIVATE_DOMAIN=patroni3
+      - HAPROXY_STATS_USER=admin
+      - HAPROXY_STATS_PASSWORD=admin123
+    ports:
+      - "5432:5432"  # PostgreSQL write port (primary)
+      - "5433:5433"  # PostgreSQL read port (replicas)
+      - "7000:7000"  # HAProxy stats UI
+      - "8008:8008"  # Health check endpoint
+    networks:
+      - patroni-net
+    depends_on:
+      patroni1:
+        condition: service_healthy
+      patroni2:
+        condition: service_healthy
+      patroni3:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8008/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+volumes:
+  etcd1_data:
+    driver: local
+  etcd2_data:
+    driver: local
+  etcd3_data:
+    driver: local
+  patroni1_data:
+    driver: local
+  patroni2_data:
+    driver: local
+  patroni3_data:
+    driver: local
+
+networks:
+  patroni-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
